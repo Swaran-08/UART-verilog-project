@@ -1,3 +1,5 @@
+//transmitter - info related to transmitter end
+
 module uartT(input clk,
 input reset,
 input [8:1]data_in,
@@ -152,3 +154,4 @@ uartR DUT2(
     .received(received));
 
 endmodule
+
