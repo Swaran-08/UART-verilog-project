@@ -65,7 +65,7 @@ assign baud_tick=baud;
 endmodule
 
 
-//receiver
+//receiver - this contains info related to receiver end
 
 
 module uartR(input data_in,
@@ -118,7 +118,7 @@ begin
 endmodule
 
 
-//mixi
+//mixi- this joins both of the above so that , transmitter output is connected receiver input.
 
 
 module mixI(input clk,
@@ -150,4 +150,5 @@ uartR DUT2(
     .data_in(y),
     .data_out(x),
     .received(received));
+
 endmodule
