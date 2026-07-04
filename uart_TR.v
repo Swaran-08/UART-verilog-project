@@ -139,6 +139,7 @@ module uart_transmitter(
     end
 
 endmodule
+
 `timescale 1ns/1ps
 
 module uart_receiver(
@@ -159,7 +160,10 @@ module uart_receiver(
     reg [3:0] sample;
     reg [2:0] index;
     reg [7:0] temp_register;
+
+    reg start_bit_ok;
     reg stop_bit_ok;
+
     always @(posedge clk) begin
         if (rst) begin
             state <= start_state;
@@ -168,6 +172,8 @@ module uart_receiver(
             temp_register <= 0;
             data_out <= 0;
             rdy <= 0;
+            start_bit_ok <= 0;
+            stop_bit_ok <= 0;
         end
         else begin
             if (rdy_clr) begin
@@ -179,11 +185,31 @@ module uart_receiver(
 
                     start_state: begin
                         if (rx == 1'b0) begin
-                            if (sample == 4'd7) begin
+
+                            // Middle of start bit: confirm start bit is still 0
+                            if (sample == 4'd8) begin
+                                if (rx == 1'b0) begin
+                                    start_bit_ok <= 1'b1;
+                                end
+                                else begin
+                                    start_bit_ok <= 1'b0;
+                                end
+                            end
+
+                            // End of start bit: only now go to data state
+                            if (sample == 4'd15) begin
                                 sample <= 0;
                                 index <= 0;
                                 temp_register <= 0;
-                                state <= data_out_state;
+
+                                if (start_bit_ok == 1'b1) begin
+                                    state <= data_out_state;
+                                end
+                                else begin
+                                    state <= start_state;
+                                end
+
+                                start_bit_ok <= 1'b0;
                             end
                             else begin
                                 sample <= sample + 1'b1;
@@ -191,22 +217,25 @@ module uart_receiver(
                         end
                         else begin
                             sample <= 0;
+                            start_bit_ok <= 0;
                             state <= start_state;
                         end
                     end
 
                     data_out_state: begin
-                        // Middle of bit time: sample the rx value safely
+
+                        // Middle of data bit: sample rx safely
                         if (sample == 4'd8) begin
                             temp_register[index] <= rx;
                         end
 
-                        // End of bit time: move to next bit
+                        // End of data bit: move to next bit
                         if (sample == 4'd15) begin
                             sample <= 0;
 
                             if (index == 3'd7) begin
                                 index <= 0;
+                                stop_bit_ok <= 0;
                                 state <= stop_state;
                             end
                             else begin
@@ -220,41 +249,42 @@ module uart_receiver(
 
                     stop_state: begin
 
-    // Middle of stop bit: check stop bit
+                        // Middle of stop bit: stop bit should be 1
                         if (sample == 4'd8) begin
-                         if (rx == 1'b1) begin
-                        stop_bit_ok <= 1'b1;
-                        end
-                         else begin
-                        stop_bit_ok <= 1'b0;
-                         end
+                            if (rx == 1'b1) begin
+                                stop_bit_ok <= 1'b1;
+                            end
+                            else begin
+                                stop_bit_ok <= 1'b0;
+                            end
                         end
 
-    // End of stop bit
+                        // End of stop bit: update data_out only if stop bit was correct
                         if (sample == 4'd15) begin
-                        sample <= 0;
+                            sample <= 0;
 
-                        if (stop_bit_ok == 1'b1) begin
-                        data_out <= temp_register;
-                        rdy <= 1'b1;
-                        end
-                         else begin
-                        rdy <= 1'b0;
-                          end
+                            if (stop_bit_ok == 1'b1) begin
+                                data_out <= temp_register;
+                                rdy <= 1'b1;
+                            end
+                            else begin
+                                rdy <= 1'b0;
+                            end
 
-                        stop_bit_ok <= 1'b0;
-                        state <= start_state;
+                            stop_bit_ok <= 1'b0;
+                            state <= start_state;
                         end
                         else begin
-                        sample <= sample + 1'b1;
+                            sample <= sample + 1'b1;
                         end
-
-                        end
+                    end
 
                     default: begin
                         state <= start_state;
                         sample <= 0;
                         index <= 0;
+                        start_bit_ok <= 0;
+                        stop_bit_ok <= 0;
                     end
 
                 endcase
