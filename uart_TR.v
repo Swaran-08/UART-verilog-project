@@ -23,7 +23,7 @@ module baud_generator(
             tx_enb <= 0;
         end
         else begin
-            if (counter_tx == 6'd49) begin
+            if (counter_tx == 6'd47) begin
                 counter_tx <= 0;
                 tx_enb <= 1'b1;
             end
@@ -159,7 +159,7 @@ module uart_receiver(
     reg [3:0] sample;
     reg [2:0] index;
     reg [7:0] temp_register;
-
+    reg stop_bit_ok;
     always @(posedge clk) begin
         if (rst) begin
             state <= start_state;
@@ -219,24 +219,37 @@ module uart_receiver(
                     end
 
                     stop_state: begin
-                        // Middle of stop bit: check stop bit is high
+
+    // Middle of stop bit: check stop bit
                         if (sample == 4'd8) begin
-                            if (rx == 1'b0) begin
-                                rdy <= 1'b0;
-                            end
+                         if (rx == 1'b1) begin
+                        stop_bit_ok <= 1'b1;
+                        end
+                         else begin
+                        stop_bit_ok <= 1'b0;
+                         end
                         end
 
-                        // End of stop bit: now update final output only once
+    // End of stop bit
                         if (sample == 4'd15) begin
-                            sample <= 0;
-                            data_out <= temp_register;
-                            rdy <= 1'b1;
-                            state <= start_state;
+                        sample <= 0;
+
+                        if (stop_bit_ok == 1'b1) begin
+                        data_out <= temp_register;
+                        rdy <= 1'b1;
+                        end
+                         else begin
+                        rdy <= 1'b0;
+                          end
+
+                        stop_bit_ok <= 1'b0;
+                        state <= start_state;
                         end
                         else begin
-                            sample <= sample + 1'b1;
+                        sample <= sample + 1'b1;
                         end
-                    end
+
+                        end
 
                     default: begin
                         state <= start_state;
